@@ -22,6 +22,7 @@ it('uses a configured model with its own table', function () {
     $relatable = $action->attachRelated($foo, score: 0.5);
 
     expect($relatable)->toBeInstanceOf(LegacyRelated::class)
+        ->and(LegacyRelated::query()->whereRelatable($action)->orderByWeight()->get()->models()->first()->is($foo))->toBeTrue()
         ->and($action->relatables()->getRelated())->toBeInstanceOf(LegacyRelated::class)
         ->and($action->relates->first()->is($foo))->toBeTrue();
 

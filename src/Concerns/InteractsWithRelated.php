@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -22,12 +23,13 @@ trait InteractsWithRelated
 {
     public static function bootInteractsWithRelated(): void
     {
-        static::deleting(function (self $model): void {
-            if (! config()->boolean('relatable.delete_on_model_delete', true)) {
-                return;
-            }
+        // Soft-deleted models keep their relations until force-deleted.
+        $event = in_array(SoftDeletes::class, class_uses_recursive(static::class), true)
+            ? 'forceDeleting'
+            : 'deleting';
 
-            if (method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting()) {
+        static::registerModelEvent($event, function (self $model): void {
+            if (! config()->boolean('relatable.delete_on_model_delete', true)) {
                 return;
             }
 
@@ -124,7 +126,7 @@ trait InteractsWithRelated
      */
     public function syncRelated(iterable $items = [], bool $mutual = false): static
     {
-        $items = $this->normalizeRelated($items)
+        $items = Collection::make($this->normalizeRelated($items))
             ->keyBy(fn (array $item): string => $this->relatedKey($item['model']->getMorphClass(), $item['model']->getKey()));
 
         $this->getConnection()->transaction(function () use ($items, $mutual): void {
@@ -221,28 +223,38 @@ trait InteractsWithRelated
 
     /**
      * @param  iterable<array-key, mixed>  $items
-     * @return Collection<int, array{model: Model, score: float|null, boost: float|null, options: array<array-key, mixed>|null}>
+     * @return list<array{model: Model, score: float|null, boost: float|null, options: array<array-key, mixed>|null}>
      */
-    protected function normalizeRelated(iterable $items): Collection
+    protected function normalizeRelated(iterable $items): array
     {
-        return Collection::make($items)
-            ->map(function (mixed $item): array {
-                if ($item instanceof Model) {
-                    return ['model' => $item, 'score' => null, 'boost' => null, 'options' => null];
-                }
+        $normalized = [];
 
-                if (! is_array($item) || ! ($item['model'] ?? null) instanceof Model) {
-                    throw new InvalidArgumentException('Each related item must be a model, or an array with a "model" key.');
-                }
+        foreach ($items as $item) {
+            $normalized[] = $this->normalizeRelatedItem($item);
+        }
 
-                return [
-                    'model' => $item['model'],
-                    'score' => isset($item['score']) && is_numeric($item['score']) ? (float) $item['score'] : null,
-                    'boost' => isset($item['boost']) && is_numeric($item['boost']) ? (float) $item['boost'] : null,
-                    'options' => isset($item['options']) && is_array($item['options']) ? $item['options'] : null,
-                ];
-            })
-            ->values();
+        return $normalized;
+    }
+
+    /**
+     * @return array{model: Model, score: float|null, boost: float|null, options: array<array-key, mixed>|null}
+     */
+    protected function normalizeRelatedItem(mixed $item): array
+    {
+        if ($item instanceof Model) {
+            return ['model' => $item, 'score' => null, 'boost' => null, 'options' => null];
+        }
+
+        if (! is_array($item) || ! ($item['model'] ?? null) instanceof Model) {
+            throw new InvalidArgumentException('Each related item must be a model, or an array with a "model" key.');
+        }
+
+        return [
+            'model' => $item['model'],
+            'score' => isset($item['score']) && is_numeric($item['score']) ? (float) $item['score'] : null,
+            'boost' => isset($item['boost']) && is_numeric($item['boost']) ? (float) $item['boost'] : null,
+            'options' => isset($item['options']) && is_array($item['options']) ? $item['options'] : null,
+        ];
     }
 
     protected function relatedKey(string $type, mixed $id): string
