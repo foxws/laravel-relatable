@@ -17,9 +17,9 @@ created in.
 ```php
 $action->attachRelated($fastpace, score: 1.0); // weight 1.0
 $action->attachRelated($chase, score: 0.4, boost: 2.0); // weight 0.8
-$action->attachRelated($foo, score: 0.5); // weight 0.5
+$action->attachRelated($genre, score: 0.5); // weight 0.5
 
-$action->relates; // Fastpace, Chase, Foo
+$action->relates; // Fastpace, Chase, Genre
 ```
 
 Use `score` for how related two models are, and `boost` to promote (or demote)
@@ -27,7 +27,7 @@ a relation without losing that base score — e.g. to feature a relation for a
 while, then reset its boost to `1.0`.
 
 ```php
-$relatable = $action->attachRelated($foo);
+$relatable = $action->attachRelated($genre);
 
 $relatable->score;  // 1.0
 $relatable->boost;  // 1.0

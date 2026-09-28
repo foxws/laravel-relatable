@@ -11,7 +11,7 @@
 
 Relate Eloquent models to other models — of any type — and control how strongly they relate. Each relation has a base `score` and a `boost`; their product, the relation's **weight**, orders the related models.
 
-Relations are directed: *Action* can relate to *Fastpace* with a score of `1.0` and to *Foo* with `0.5`, while *Foo* relates back to *Action* with a score of its own.
+Relations are directed: *Action* can relate to *Fastpace* with a score of `1.0` and to *Genre* with `0.5`, while *Genre* relates back to *Action* with a score of its own.
 
 ## Installation
 
@@ -52,24 +52,26 @@ Then relate models, with an optional score and boost:
 
 ```php
 $action->attachRelated($fastpace, score: 1.0);
-$action->attachRelated($foo, score: 0.5);
+$action->attachRelated($genre, score: 0.5);
 
-// Relate both ways, with a lower score back.
-$action->attachRelated($foo, score: 0.5, mutual: true, mutualScore: 0.25);
+// Relations are directed. Relate both ways (Action → Genre and Genre → Action),
+// with a lower score back.
+$action->attachRelated($genre, score: 0.5, mutual: true, mutualScore: 0.25);
 
 // Relate exactly these models, removing the rest.
 $action->syncRelated([
     $fastpace,
-    ['model' => $foo, 'score' => 0.5, 'boost' => 2.0],
+    ['model' => $genre, 'score' => 0.5, 'boost' => 2.0],
 ]);
 
-$action->detachRelated($foo);
+$action->detachRelated($genre);               // only Action → Genre
+$action->detachRelated($genre, mutual: true); // and Genre → Action
 
 $action->relates; // Collection of related models, highest weight first
 $action->getRelates(Video::class); // only related videos
 ```
 
-See the [documentation](docs/index.md) for scoring, querying relations, and configuration.
+See the [documentation](docs/index.md) for mutual relations, scoring, querying relations, and configuration.
 
 ## Changelog
 
