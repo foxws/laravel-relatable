@@ -21,7 +21,7 @@ class Tag extends Model
 
 ```php
 $action->attachRelated($fastpace);            // score and boost default to 1.0
-$action->attachRelated($foo, score: 0.5);
+$action->attachRelated($genre, score: 0.5);
 $action->attachRelated($chase, score: 0.4, boost: 2.0, options: ['source' => 'manual']);
 ```
 
@@ -31,18 +31,36 @@ boost left `null` keeps its current value. It returns the
 
 ### Mutual relations
 
-Pass `mutual: true` to relate the model back to this one as well. The relation
-back gets the same score and boost, unless you give it its own:
+Relations are directed, so `$action->attachRelated($genre)` only writes
+*Action → Genre*: `$genre->relates` doesn't include *Action*. Pass
+`mutual: true` to write the relation back as well, in the same transaction:
 
 ```php
-$action->attachRelated($foo, score: 1.0, mutual: true, mutualScore: 0.5);
+$action->attachRelated($genre, score: 1.0, mutual: true, mutualScore: 0.5);
+
+// Action → Genre: score 1.0
+// Genre → Action: score 0.5
+```
+
+The relation back gets the same score and boost, unless you give it its own
+with `mutualScore` and `mutualBoost`. This lets two models relate to each other
+with a different weight each way — a genre may matter a lot to an action,
+while the action is just one of many for the genre. The `options` are the same
+for both.
+
+Only the model you call the method on has its loaded relations refreshed. If
+`$genre` already has `relatables` or `relates` loaded, reload it to see the
+relation back:
+
+```php
+$genre->refresh();
 ```
 
 ## Detaching
 
 ```php
-$action->detachRelated($foo);               // only Action → Foo
-$action->detachRelated($foo, mutual: true); // and Foo → Action
+$action->detachRelated($genre);               // only Action → Genre
+$action->detachRelated($genre, mutual: true); // and Genre → Action
 ```
 
 ## Syncing
@@ -54,14 +72,26 @@ an array with a `model` and an optional `score`, `boost` and `options`:
 ```php
 $action->syncRelated([
     $fastpace,
-    ['model' => $foo, 'score' => 0.5],
+    ['model' => $genre, 'score' => 0.5],
 ]);
 
 $action->syncRelated([]); // remove all
 ```
 
-A plain model keeps the score of an existing relation. With `mutual: true`, the
-relations back are created and removed along with them.
+A plain model keeps the score of an existing relation.
+
+With `mutual: true`, the relations back are kept in sync too:
+
+```php
+$action->syncRelated([$fastpace, $genre], mutual: true);
+```
+
+- Each given model is related back to this one, with the same score and boost
+  as its item (a plain model keeps the scores of an existing relation back).
+  Use `attachRelated()` to give a relation back its own score.
+- A relation back is only removed along with the relation that sync removes.
+  So when *Genre → Action* exists without *Action → Genre*, syncing *Action*
+  without *Genre* keeps it.
 
 ## Retrieving related models
 

@@ -17,7 +17,7 @@ videos — each relation is a row in the `relatables` table.
 
 ## Directed relations
 
-Relations are directed. When *Action* relates to *Foo*, *Foo* doesn't relate to
+Relations are directed. When *Action* relates to *Genre*, *Genre* doesn't relate to
 *Action* unless you say so — and when it does, it gets a score of its own. Two
 models can relate to each other, yet still differ in how much they do.
 
