@@ -43,6 +43,14 @@ class Relatable extends Model
 
     protected $table = 'relatables';
 
+    /**
+     * Also set as properties: unlike the class attributes, these are
+     * inherited by a subclass on older Laravel versions.
+     */
+    protected static string $builder = RelatableQueryBuilder::class;
+
+    protected static string $collectionClass = RelatableCollection::class;
+
     /** @var list<string> */
     protected $fillable = [
         'relatable_type',

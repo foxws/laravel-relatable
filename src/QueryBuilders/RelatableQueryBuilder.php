@@ -28,7 +28,9 @@ class RelatableQueryBuilder extends Builder
             $this->select($this->qualifyColumn('*'));
         }
 
-        return $this->selectRaw(self::WEIGHT_EXPRESSION.' as weight');
+        $this->selectRaw(self::WEIGHT_EXPRESSION.' as weight');
+
+        return $this;
     }
 
     public function orderByWeight(string $direction = 'desc'): static
@@ -39,16 +41,20 @@ class RelatableQueryBuilder extends Builder
             throw new InvalidArgumentException('Order direction must be "asc" or "desc".');
         }
 
-        return $this
+        $this
             ->orderByRaw(self::WEIGHT_EXPRESSION.' '.($direction === 'asc' ? 'asc' : 'desc'))
             ->orderBy($this->qualifyColumn($this->getModel()->getKeyName()));
+
+        return $this;
     }
 
     public function minWeight(float $weight): static
     {
         // Multiplied by 1.0 so the (string) binding is compared as a number:
         // SQLite otherwise compares it as text, as the weight has no affinity.
-        return $this->whereRaw(self::WEIGHT_EXPRESSION.' >= (? * 1.0)', [$weight]);
+        $this->whereRaw(self::WEIGHT_EXPRESSION.' >= (? * 1.0)', [$weight]);
+
+        return $this;
     }
 
     public function whereRelatable(Model $model): static
