@@ -1,0 +1,24 @@
+# Path-based git attributes
+# https://www.kernel.org/pub/software/scm/git/docs/gitattributes.html
+
+# Normalize line endings to LF on checkout (including on Windows), so Pint's
+# line_ending rule doesn't flag every file when checked out there.
+* text=auto eol=lf
+
+# Ignore all test and documentation with "export-ignore".
+/.github            export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/phpunit.xml.dist   export-ignore
+/docs               export-ignore
+/tests              export-ignore
+/workbench          export-ignore
+/.editorconfig      export-ignore
+/testbench.yaml     export-ignore
+/UPGRADING.md       export-ignore
+/phpstan.neon.dist  export-ignore
+/pint.json          export-ignore
+/AGENTS.md          export-ignore
+/CLAUDE.md          export-ignore
+/.claude            export-ignore
+/.agents            export-ignore
