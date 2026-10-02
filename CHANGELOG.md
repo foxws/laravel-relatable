@@ -2,6 +2,19 @@
 
 All notable changes to `laravel-relatable` will be documented in this file.
 
+## v1.0.1 - 2026-10-02
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+### What's Changed
+
+#### Other Changes
+
+* docs: explain mutual relations in more detail by @francoism90 in https://github.com/foxws/laravel-relatable/pull/2
+* docs: add the foxws.nl homepage group, a hero lead and a clearer introduction by @francoism90 in https://github.com/foxws/laravel-relatable/pull/3
+* Raise PHPStan to level 8 by @francoism90 in https://github.com/foxws/laravel-relatable/pull/5
+
+**Full Changelog**: https://github.com/foxws/laravel-relatable/compare/v1.0.0...v1.0.1
+
 ## v1.0.0 - 2026-09-28
 
 First release of Laravel Relatable: relate Eloquent models to other models, of any type, with a base score and boost to control their priority.
