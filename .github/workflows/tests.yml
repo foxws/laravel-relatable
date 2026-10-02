@@ -58,8 +58,12 @@ jobs:
       - name: Linter
         run: composer lint:check
 
+      # Type coverage only checks the package's own type declarations, so one
+      # job is enough. Running it in every job also made the type-coverage
+      # plugin's parallel cache race (fixed only in v5, which needs PHP 8.4)
+      # far more likely to corrupt its cache and fail the build.
       - name: Type Coverage
-        if: runner.os != 'Windows'
+        if: matrix.os == 'ubuntu-latest' && matrix.php == '8.5' && matrix.laravel == '13.*' && matrix.stability == 'prefer-stable'
         run: composer test:types
 
       - name: Test Suite
