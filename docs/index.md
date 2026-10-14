@@ -16,6 +16,16 @@ Relate Eloquent models to other models, of any type, and control how strongly
 they relate. A tag can relate to other tags, a video to tags, a post to
 videos — each relation is a row in the `relatables` table.
 
+> [!TIP]
+> Let your AI agent do the hard parts. This package ships a [Laravel Boost](https://laravel.com/docs/boost) skill, `relatable-development`, that teaches your agent how to install, configure and use Laravel Relatable. Install Boost and select the skill when prompted:
+>
+> ```bash
+> composer require laravel/boost --dev
+> php artisan boost:install
+> ```
+>
+> Already using Boost? Run `php artisan boost:update --discover` to pick up the skill. Then just ask, for example: *"Relate my Video model to tags and order them by weight."*
+
 ## Directed relations
 
 Relations are directed. When *Action* relates to *Genre*, *Genre* doesn't relate to
