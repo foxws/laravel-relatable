@@ -2,6 +2,17 @@
 
 All notable changes to `laravel-relatable` will be documented in this file.
 
+## v1.0.3 - 2026-10-14
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+### What's Changed
+
+#### Other Changes
+
+* Add Laravel Boost tip to README and docs by @francoism90 in https://github.com/foxws/laravel-relatable/pull/7
+
+**Full Changelog**: https://github.com/foxws/laravel-relatable/compare/v1.0.2...v1.0.3
+
 ## v1.0.2 - 2026-10-13
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
