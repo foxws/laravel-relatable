@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Foxws\Relatable\Models\Relatable;
 use Foxws\Relatable\Tests\Fixtures\Models\Post;
 use Foxws\Relatable\Tests\Fixtures\Models\Tag;
+use Illuminate\Support\Facades\DB;
 
 it('relates a model with the default score and boost', function () {
     $action = Tag::create(['name' => 'Action']);
@@ -122,6 +123,23 @@ it('keeps existing scores when syncing plain models', function () {
     $action->syncRelated([$foo]);
 
     expect(Relatable::query()->sole()->score)->toBe(0.5);
+});
+
+it('loads the existing relations once when syncing', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $tags = collect(['Foo', 'Bar', 'Baz'])->map(fn (string $name): Tag => Tag::create(['name' => $name]));
+
+    $action->syncRelated([$tags[0]]);
+
+    DB::enableQueryLog();
+
+    $action->syncRelated($tags->all());
+
+    $selects = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_starts_with(strtolower($query['query']), 'select'));
+
+    expect($selects)->toHaveCount(1);
+
+    $this->assertDatabaseCount('relatables', 3);
 });
 
 it('syncs the relations back when mutual', function () {
