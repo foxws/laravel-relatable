@@ -130,9 +130,12 @@ trait InteractsWithRelated
             ->keyBy(fn (array $item): string => $this->relatedKey($item['model']->getMorphClass(), $item['model']->getKey()));
 
         $this->getConnection()->transaction(function () use ($items, $mutual): void {
-            $this->relatables()
+            $existing = $this->relatables()
                 ->get()
-                ->reject(fn (Relatable $relatable): bool => $items->has($this->relatedKey($relatable->related_type, $relatable->related_id)))
+                ->keyBy(fn (Relatable $relatable): string => $this->relatedKey($relatable->related_type, $relatable->related_id));
+
+            $existing
+                ->reject(fn (Relatable $relatable, string $key): bool => $items->has($key))
                 ->each(function (Relatable $relatable) use ($mutual): void {
                     $relatable->delete();
 
@@ -148,13 +151,19 @@ trait InteractsWithRelated
                         ->each(fn (Relatable $reverse): ?bool => $reverse->delete());
                 });
 
-            $items->each(fn (array $item): Relatable => $this->attachRelated(
-                $item['model'],
-                $item['score'],
-                $item['boost'],
-                $item['options'],
-                $mutual,
-            ));
+            // The relations from this model were loaded above, so only the ones back are looked up.
+            $items->each(function (array $item, string $key) use ($existing, $mutual): void {
+                if ($mutual) {
+                    static::writeRelatable($item['model'], $this, $item['score'], $item['boost'], $item['options']);
+                }
+
+                static::fillRelatable(
+                    $existing->get($key) ?? static::newRelatable($this, $item['model']),
+                    $item['score'],
+                    $item['boost'],
+                    $item['options'],
+                );
+            });
         });
 
         $this->flushRelatedCache();
@@ -197,13 +206,34 @@ trait InteractsWithRelated
      */
     protected static function writeRelatable(Model $from, Model $to, ?float $score, ?float $boost, ?array $options): Relatable
     {
-        $relatable = Relatable::modelClass()::query()->firstOrNew([
+        $relatable = Relatable::modelClass()::query()
+            ->whereRelatable($from)
+            ->whereRelated($to)
+            ->first();
+
+        return static::fillRelatable($relatable ?? static::newRelatable($from, $to), $score, $boost, $options);
+    }
+
+    protected static function newRelatable(Model $from, Model $to): Relatable
+    {
+        $model = Relatable::modelClass();
+
+        return new $model([
             'relatable_type' => $from->getMorphClass(),
             'relatable_id' => $from->getKey(),
             'related_type' => $to->getMorphClass(),
             'related_id' => $to->getKey(),
         ]);
+    }
 
+    /**
+     * Save the given score, boost and options; a new relation gets the
+     * configured default for the ones left null.
+     *
+     * @param  array<array-key, mixed>|null  $options
+     */
+    protected static function fillRelatable(Relatable $relatable, ?float $score, ?float $boost, ?array $options): Relatable
+    {
         $attributes = array_filter(
             ['score' => $score, 'boost' => $boost, 'options' => $options],
             fn (mixed $value): bool => $value !== null,
