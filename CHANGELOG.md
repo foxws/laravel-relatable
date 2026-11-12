@@ -2,6 +2,17 @@
 
 All notable changes to `laravel-relatable` will be documented in this file.
 
+## v1.1.0 - 2026-11-12
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+### What's Changed
+
+#### Other Changes
+
+* Reuse the loaded relations when syncing instead of querying each model by @francoism90 in https://github.com/foxws/laravel-relatable/pull/8
+
+**Full Changelog**: https://github.com/foxws/laravel-relatable/compare/v1.0.3...v1.1.0
+
 ## v1.0.3 - 2026-10-14
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
