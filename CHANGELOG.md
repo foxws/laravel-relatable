@@ -2,6 +2,19 @@
 
 All notable changes to `laravel-relatable` will be documented in this file.
 
+## v2.0.0 - 2026-11-19
+
+This release requires PHP 8.5 or newer and Laravel 13. PHP 8.4 and Laravel 12 are no longer supported, and PHP 8.6 is now tested in CI. Stay on the previous major version if you still run PHP 8.4 or Laravel 12.
+
+<!-- Release notes generated using configuration in .github/release.yml at a8338a14dc3ed2b71ad2609a38a5fcd7df710f98 -->
+### What's Changed
+
+#### Other Changes
+
+* Drop PHP 8.4 and add PHP 8.6 by @francoism90 in https://github.com/foxws/laravel-relatable/pull/9
+
+**Full Changelog**: https://github.com/foxws/laravel-relatable/compare/v1.1.0...v2.0.0
+
 ## v1.1.0 - 2026-11-12
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
