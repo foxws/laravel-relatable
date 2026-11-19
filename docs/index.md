@@ -5,7 +5,7 @@ metadata:
   group: search
   eyebrow: "Eloquent · Relations · Scoring"
   desc: "Relate Eloquent models to other models, with a base score and boost to control their priority."
-  requires: "PHP ^8.3"
+  requires: "PHP ^8.5"
   laravel: "12.x / 13.x"
   licence: MIT
 ---
