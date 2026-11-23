@@ -58,7 +58,7 @@ Pass `mutual: true` when both models should list each other in `relates`; withou
 
 ### 5. Customize (optional)
 
-- `relatable.models.relatable`: a subclass of `Foxws\Relatable\Models\Relatable`. It may set `$table` to keep an existing table; then set `relatable.migrations` to `false`.
+- `relatable.models.relatable`: a subclass of `Foxws\Relatable\Models\Relatable`. It may set `$table` to keep an existing table; then set `relatable.migrations` to `false`, as the migration always creates `relatables`.
 - `relatable.defaults.score` / `relatable.defaults.boost`: values for new relations.
 - `relatable.delete_on_model_delete`: deleting a model removes its relations both ways (soft deletes keep them until force-deleted).
 

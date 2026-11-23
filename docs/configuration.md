@@ -35,8 +35,8 @@ class Related extends Relatable
 
 ## Using an existing table
 
-Your model may set its own `$table`. Every relation, the trait and the
-package's migration resolve the table from the configured model:
+Your model may set its own `$table`. Every relation and the trait resolve the
+table from the configured model:
 
 ```php
 class Related extends Relatable
@@ -45,8 +45,8 @@ class Related extends Relatable
 }
 ```
 
-When your application already owns that table, set `migrations` to `false`.
-The table needs these columns:
+The package's migration always creates `relatables`, so set `migrations` to
+`false` and create (or keep) that table yourself. It needs these columns:
 
 | Column | Type |
 | --- | --- |
