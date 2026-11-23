@@ -11,7 +11,8 @@ composer require foxws/laravel-relatable
 
 The migration for the `relatables` table runs automatically — no
 `vendor:publish` step is required, but it can still be published (and
-customized) via:
+customized) via the command below. Once it is published, the package no longer
+runs its own copy:
 
 ```bash
 php artisan vendor:publish --tag="relatable-migrations"

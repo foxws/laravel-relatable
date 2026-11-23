@@ -11,7 +11,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create($this->tableName(), function (Blueprint $table) {
+        $tableName = $this->tableName();
+
+        Schema::create($tableName, function (Blueprint $table) use ($tableName) {
             $table->id();
             $table->morphs('relatable');
             $table->morphs('related');
@@ -19,7 +21,8 @@ return new class extends Migration
             $table->float('boost')->default(1);
             $table->jsonb('options')->nullable();
             $table->timestamps();
-            $table->unique(['relatable_type', 'relatable_id', 'related_type', 'related_id']);
+            // The generated name is 69 characters, longer than MySQL allows.
+            $table->unique(['relatable_type', 'relatable_id', 'related_type', 'related_id'], "{$tableName}_relation_unique");
         });
     }
 

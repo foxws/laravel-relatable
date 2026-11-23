@@ -21,7 +21,7 @@ class RelatableServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (config()->boolean('relatable.migrations', true)) {
+        if (config()->boolean('relatable.migrations', true) && ! $this->migrationIsPublished()) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
         }
 
@@ -36,5 +36,14 @@ class RelatableServiceProvider extends ServiceProvider
         $this->publishesMigrations([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], ['relatable', 'relatable-migrations']);
+    }
+
+    /**
+     * A published copy gets a new date in its name, so running the package's
+     * own migration as well would create the table twice.
+     */
+    protected function migrationIsPublished(): bool
+    {
+        return (glob($this->app->databasePath('migrations/*_create_relatables_table.php')) ?: []) !== [];
     }
 }

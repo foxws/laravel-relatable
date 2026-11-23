@@ -22,7 +22,7 @@ Use this skill when a Laravel application relates models to other models with th
 ### 1. Install
 
 - `composer require foxws/laravel-relatable`
-- The `relatables` migration runs automatically. Don't write your own migration for it.
+- The `relatables` migration runs automatically. Don't write your own migration for it; to change it, publish it (`--tag="relatable-migrations"`), and the package then runs the published copy instead of its own.
 - Add `use Foxws\Relatable\Concerns\InteractsWithRelated;` to each model that relates to others.
 
 ### 2. Relate models
