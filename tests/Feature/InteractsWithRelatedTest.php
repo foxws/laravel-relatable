@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 use Foxws\Relatable\Models\Relatable;
 use Foxws\Relatable\Tests\Fixtures\Models\Post;
+use Foxws\Relatable\Tests\Fixtures\Models\StringableKeyTag;
 use Foxws\Relatable\Tests\Fixtures\Models\Tag;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 it('relates a model with the default score and boost', function () {
     $action = Tag::create(['name' => 'Action']);
@@ -205,4 +210,176 @@ it('uses the configured default score and boost', function () {
     $relatable = Tag::create(['name' => 'Action'])->attachRelated(Tag::create(['name' => 'Foo']));
 
     expect($relatable->weight)->toBe(1.5);
+});
+
+function useSecondConnection(): void
+{
+    config()->set('database.connections.second', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
+
+    $schema = Schema::connection('second');
+
+    $schema->create('tags', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->timestamps();
+    });
+
+    $schema->create('relatables', function (Blueprint $table) {
+        $table->id();
+        $table->morphs('relatable');
+        $table->morphs('related');
+        $table->float('score')->default(1);
+        $table->float('boost')->default(1);
+        $table->json('options')->nullable();
+        $table->timestamps();
+    });
+}
+
+it('writes relations on the connection of the model', function () {
+    useSecondConnection();
+
+    $action = Tag::on('second')->create(['name' => 'Action']);
+    $action->attachRelated(Tag::on('second')->create(['name' => 'Foo']), mutual: true);
+
+    expect(DB::connection('second')->table('relatables')->count())->toBe(2);
+
+    $this->assertDatabaseCount('relatables', 0);
+});
+
+it('only detaches relations on the connection of the model', function () {
+    useSecondConnection();
+
+    Tag::create(['name' => 'Action'])->attachRelated(Tag::create(['name' => 'Foo']));
+
+    $action = Tag::on('second')->create(['name' => 'Action']);
+    $foo = Tag::on('second')->create(['name' => 'Foo']);
+
+    expect($action->detachRelated($foo, mutual: true))->toBeFalse();
+
+    $this->assertDatabaseCount('relatables', 1);
+});
+
+it('keeps the relations when deleting the model is cancelled', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $action->attachRelated(Tag::create(['name' => 'Foo']));
+
+    Tag::deleting(fn (): bool => false);
+
+    expect($action->delete())->toBeFalse();
+
+    $this->assertDatabaseCount('relatables', 1);
+});
+
+it('keeps the relations when deleting the model fails', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $action->attachRelated(Tag::create(['name' => 'Foo']));
+
+    DB::statement("create trigger keep_tags before delete on tags begin select raise(abort, 'kept'); end");
+
+    expect(fn () => $action->delete())->toThrow(QueryException::class);
+
+    $this->assertDatabaseCount('relatables', 1);
+});
+
+it('detaches the other relations when deleting one is cancelled', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $foo = Tag::create(['name' => 'Foo']);
+
+    $action->attachRelated($foo, mutual: true);
+
+    Relatable::deleting(fn (Relatable $relatable): ?bool => $relatable->relatable_id === $action->getKey() ? false : null);
+
+    expect($action->detachRelated($foo, mutual: true))->toBeTrue()
+        ->and(Relatable::query()->sole()->relatable_id)->toBe($action->getKey());
+});
+
+it('does not add the relations to the array when reading related models', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $action->attachRelated(Post::create(['title' => 'Chase']), options: ['source' => 'manual']);
+
+    $action->getRelates(Tag::class);
+
+    expect($action->toArray())->not->toHaveKey('relatables')
+        ->and($action->append('relates')->toArray())->not->toHaveKey('relatables');
+});
+
+it('syncs a model with itself when mutual', function () {
+    $action = Tag::create(['name' => 'Action']);
+
+    $action->syncRelated([$action], mutual: true);
+
+    $this->assertDatabaseCount('relatables', 1);
+});
+
+it('relates a model that was related at the same time elsewhere', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $foo = Tag::create(['name' => 'Foo']);
+
+    // Insert the same relation right after the lookup for an existing one.
+    $inserted = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$inserted, $action, $foo): void {
+        if ($inserted || ! str_starts_with($query->sql, 'select')) {
+            return;
+        }
+
+        $inserted = true;
+
+        DB::table('relatables')->insert([
+            'relatable_type' => $action->getMorphClass(),
+            'relatable_id' => $action->getKey(),
+            'related_type' => $foo->getMorphClass(),
+            'related_id' => $foo->getKey(),
+        ]);
+    });
+
+    $relatable = $action->attachRelated($foo, score: 0.5);
+
+    expect($relatable->score)->toBe(0.5);
+
+    $this->assertDatabaseCount('relatables', 1);
+});
+
+it('rejects a score or boost that is not finite', function (array $item) {
+    $action = Tag::create(['name' => 'Action']);
+
+    expect(fn () => $action->syncRelated([['model' => Tag::create(['name' => 'Foo']), ...$item]]))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => $action->attachRelated(Tag::create(['name' => 'Bar']), score: INF))->toThrow(InvalidArgumentException::class);
+
+    $this->assertDatabaseCount('relatables', 0);
+})->with([
+    'score' => [['score' => '1e999']],
+    'boost' => [['boost' => '-1e999']],
+]);
+
+it('rejects a score that is not a number when syncing', function () {
+    Tag::create(['name' => 'Action'])->syncRelated([['model' => Tag::create(['name' => 'Foo']), 'score' => 'high']]);
+})->throws(InvalidArgumentException::class);
+
+it('uses integer defaults from the config', function () {
+    config()->set('relatable.defaults.score', 2);
+
+    $relatable = Tag::create(['name' => 'Action'])->attachRelated(Tag::create(['name' => 'Foo']));
+
+    expect($relatable->score)->toBe(2.0);
+});
+
+it('syncs models with stringable keys', function () {
+    $action = Tag::create(['name' => 'Action']);
+
+    $action->syncRelated([
+        StringableKeyTag::create(['name' => 'Foo']),
+        StringableKeyTag::create(['name' => 'Bar']),
+    ]);
+
+    $this->assertDatabaseCount('relatables', 2);
+});
+
+it('refreshes the relations from other models after a mutual change', function () {
+    $action = Tag::create(['name' => 'Action']);
+    $action->load('relatablesFrom');
+
+    $action->attachRelated(Tag::create(['name' => 'Foo']), mutual: true);
+
+    expect($action->relatablesFrom)->toHaveCount(1);
 });

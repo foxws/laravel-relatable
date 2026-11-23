@@ -34,7 +34,9 @@ $relatable->boost;  // 1.0
 $relatable->weight; // 1.0
 ```
 
-The defaults for new relations are set in `relatable.defaults`.
+The defaults for new relations are set in `relatable.defaults`. Scores and
+boosts must be finite numbers: infinity and NaN throw an
+`InvalidArgumentException`.
 
 ## Querying by weight
 
