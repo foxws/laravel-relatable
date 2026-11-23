@@ -22,7 +22,7 @@ Use this skill when a Laravel application relates models to other models with th
 ### 1. Install
 
 - `composer require foxws/laravel-relatable`
-- The `relatables` migration runs automatically. Don't write your own migration for it.
+- The `relatables` migration runs automatically. Don't write your own migration for it; to change it, publish it (`--tag="relatable-migrations"`) and set `relatable.migrations` to `false`, or both copies run and the second fails with "table already exists".
 - Add `use Foxws\Relatable\Concerns\InteractsWithRelated;` to each model that relates to others.
 
 ### 2. Relate models
@@ -59,7 +59,7 @@ Pass `mutual: true` when both models should list each other in `relates`; withou
 
 ### 5. Customize (optional)
 
-- `relatable.models.relatable`: a subclass of `Foxws\Relatable\Models\Relatable`. It may set `$table` to keep an existing table; then set `relatable.migrations` to `false`.
+- `relatable.models.relatable`: a subclass of `Foxws\Relatable\Models\Relatable`. It may set `$table` to keep an existing table; then set `relatable.migrations` to `false`, as the migration always creates `relatables`.
 - `relatable.defaults.score` / `relatable.defaults.boost`: values for new relations.
 - `relatable.delete_on_model_delete`: deleting a model removes its relations both ways once the delete succeeded (soft deletes keep them until force-deleted).
 - Relations use the connection of the model they start from, unless the configured model sets its own `$connection`.

@@ -9,7 +9,8 @@ return [
     /*
      * Override this to use your own model. Yours must extend
      * `Foxws\Relatable\Models\Relatable`, and may set its own `$table`
-     * (e.g. to keep using an existing table).
+     * (e.g. to keep using an existing table). The package's migration
+     * always creates `relatables`, so then disable `migrations` below.
      */
     'models' => [
         'relatable' => Relatable::class,
@@ -17,7 +18,8 @@ return [
 
     /*
      * When enabled, the package's migration runs automatically. Disable
-     * it when your application owns the table (e.g. an existing one).
+     * it when your application owns the table (e.g. an existing one), or
+     * when you published the migration: both copies would run otherwise.
      */
     'migrations' => true,
 

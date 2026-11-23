@@ -11,10 +11,13 @@ composer require foxws/laravel-relatable
 
 The migration for the `relatables` table runs automatically — no
 `vendor:publish` step is required, but it can still be published (and
-customized) via:
+customized). Then set `migrations` to `false` in the published config before
+migrating, or both copies run and the second fails with "table already exists":
 
 ```bash
 php artisan vendor:publish --tag="relatable-migrations"
+php artisan vendor:publish --tag="relatable-config"
+# set 'migrations' => false in config/relatable.php
 php artisan migrate
 ```
 
