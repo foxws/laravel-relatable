@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Foxws\Relatable\Concerns;
 
+use BackedEnum;
 use Foxws\Relatable\Collections\RelatableCollection;
 use Foxws\Relatable\Models\Relatable;
+use Foxws\Relatable\QueryBuilders\RelatableQueryBuilder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use Stringable;
 
 /**
  * @property-read RelatableCollection<int, Relatable> $relatables
@@ -23,18 +26,24 @@ trait InteractsWithRelated
 {
     public static function bootInteractsWithRelated(): void
     {
-        // Soft-deleted models keep their relations until force-deleted.
+        // Soft-deleted models keep their relations until force-deleted. They are
+        // removed once the delete succeeded, so a cancelled or failed one keeps them.
         $event = in_array(SoftDeletes::class, class_uses_recursive(static::class), true)
-            ? 'forceDeleting'
-            : 'deleting';
+            ? 'forceDeleted'
+            : 'deleted';
 
         static::registerModelEvent($event, function (self $model): void {
             if (! config()->boolean('relatable.delete_on_model_delete', true)) {
                 return;
             }
 
-            $model->relatables()->cursor()->each(fn (Relatable $relatable): ?bool => $relatable->delete());
-            $model->relatablesFrom()->cursor()->each(fn (Relatable $relatable): ?bool => $relatable->delete());
+            $model->relatables()->cursor()->each(function (Relatable $relatable): void {
+                $relatable->delete();
+            });
+
+            $model->relatablesFrom()->cursor()->each(function (Relatable $relatable): void {
+                $relatable->delete();
+            });
         });
     }
 
@@ -95,20 +104,20 @@ trait InteractsWithRelated
     public function detachRelated(Model $model, bool $mutual = false): bool
     {
         $deleted = $this->getConnection()->transaction(function () use ($model, $mutual): bool {
-            $relatables = Relatable::modelClass()::query()
+            $relatables = static::relatableQuery($this)
                 ->whereRelatable($this)
                 ->whereRelated($model)
                 ->get();
 
             if ($mutual) {
                 $relatables = $relatables->merge(
-                    Relatable::modelClass()::query()->whereRelatable($model)->whereRelated($this)->get(),
+                    static::relatableQuery($this)->whereRelatable($model)->whereRelated($this)->get(),
                 );
             }
 
-            $relatables->each(fn (Relatable $relatable): ?bool => $relatable->delete());
-
-            return $relatables->isNotEmpty();
+            return $relatables
+                ->filter(fn (Relatable $relatable): bool => (bool) $relatable->delete())
+                ->isNotEmpty();
         });
 
         $this->flushRelatedCache();
@@ -143,17 +152,19 @@ trait InteractsWithRelated
                         return;
                     }
 
-                    Relatable::modelClass()::query()
+                    static::relatableQuery($this)
                         ->where('relatable_type', $relatable->related_type)
                         ->where('relatable_id', $relatable->related_id)
                         ->whereRelated($this)
                         ->get()
-                        ->each(fn (Relatable $reverse): ?bool => $reverse->delete());
+                        ->each(function (Relatable $reverse): void {
+                            $reverse->delete();
+                        });
                 });
 
             // The relations from this model were loaded above, so only the ones back are looked up.
             $items->each(function (array $item, string $key) use ($existing, $mutual): void {
-                if ($mutual) {
+                if ($mutual && ! $item['model']->is($this)) {
                     static::writeRelatable($item['model'], $this, $item['score'], $item['boost'], $item['options']);
                 }
 
@@ -179,10 +190,14 @@ trait InteractsWithRelated
      */
     public function getRelates(?string $type = null): Collection
     {
-        $this->loadMissing('relatables.related');
-
+        // Only reuse loaded relations: loading them here would add every relation,
+        // of every type and with its options, to the model's array and JSON.
         /** @var RelatableCollection<int, Relatable> $relatables */
-        $relatables = $this->getRelation('relatables');
+        $relatables = $this->relationLoaded('relatables')
+            ? $this->getRelation('relatables')
+            : $this->relatables()->get();
+
+        $relatables->loadMissing('related');
 
         if ($type !== null) {
             $morphType = is_a($type, Model::class, true) ? Relation::getMorphAlias($type) : $type;
@@ -206,7 +221,7 @@ trait InteractsWithRelated
      */
     protected static function writeRelatable(Model $from, Model $to, ?float $score, ?float $boost, ?array $options): Relatable
     {
-        $relatable = Relatable::modelClass()::query()
+        $relatable = static::relatableQuery($from)
             ->whereRelatable($from)
             ->whereRelated($to)
             ->first();
@@ -216,14 +231,38 @@ trait InteractsWithRelated
 
     protected static function newRelatable(Model $from, Model $to): Relatable
     {
-        $model = Relatable::modelClass();
-
-        return new $model([
+        return static::newRelatableInstance($from)->fill([
             'relatable_type' => $from->getMorphClass(),
             'relatable_id' => $from->getKey(),
             'related_type' => $to->getMorphClass(),
             'related_id' => $to->getKey(),
         ]);
+    }
+
+    /**
+     * A relation row on the connection of the model it starts from, unless
+     * the configured model sets its own, like relatables() does.
+     */
+    protected static function newRelatableInstance(Model $model): Relatable
+    {
+        $class = Relatable::modelClass();
+
+        $relatable = new $class;
+
+        if (! $relatable->getConnectionName()) {
+            $relatable->setConnection($model->getConnectionName());
+        }
+
+        return $relatable;
+    }
+
+    /**
+     * @return RelatableQueryBuilder<Relatable>
+     */
+    protected static function relatableQuery(Model $model): RelatableQueryBuilder
+    {
+        /** @var RelatableQueryBuilder<Relatable> */
+        return static::newRelatableInstance($model)->newQuery();
     }
 
     /**
@@ -234,21 +273,38 @@ trait InteractsWithRelated
      */
     protected static function fillRelatable(Relatable $relatable, ?float $score, ?float $boost, ?array $options): Relatable
     {
+        foreach (['score' => $score, 'boost' => $boost] as $name => $value) {
+            if ($value !== null && ! is_finite($value)) {
+                throw new InvalidArgumentException("The {$name} of a relation must be a finite number.");
+            }
+        }
+
         $attributes = array_filter(
             ['score' => $score, 'boost' => $boost, 'options' => $options],
             fn (mixed $value): bool => $value !== null,
         );
 
-        if (! $relatable->exists) {
-            $attributes += [
-                'score' => config()->float('relatable.defaults.score', 1.0),
-                'boost' => config()->float('relatable.defaults.boost', 1.0),
-            ];
+        if ($relatable->exists) {
+            $relatable->fill($attributes)->save();
+
+            return $relatable;
         }
 
-        $relatable->fill($attributes)->save();
+        // Another request may have created the same relation in the meantime.
+        /** @var Relatable $created */
+        $created = $relatable->newQuery()->createOrFirst(
+            $relatable->only(['relatable_type', 'relatable_id', 'related_type', 'related_id']),
+            $attributes + [
+                'score' => (float) config('relatable.defaults.score', 1.0),
+                'boost' => (float) config('relatable.defaults.boost', 1.0),
+            ],
+        );
 
-        return $relatable;
+        if (! $created->wasRecentlyCreated) {
+            $created->fill($attributes)->save();
+        }
+
+        return $created;
     }
 
     /**
@@ -279,22 +335,35 @@ trait InteractsWithRelated
             throw new InvalidArgumentException('Each related item must be a model, or an array with a "model" key.');
         }
 
+        foreach (['score', 'boost'] as $name) {
+            if (isset($item[$name]) && ! is_numeric($item[$name])) {
+                throw new InvalidArgumentException("The {$name} of a related item must be a number.");
+            }
+        }
+
         return [
             'model' => $item['model'],
-            'score' => isset($item['score']) && is_numeric($item['score']) ? (float) $item['score'] : null,
-            'boost' => isset($item['boost']) && is_numeric($item['boost']) ? (float) $item['boost'] : null,
+            'score' => isset($item['score']) ? (float) $item['score'] : null,
+            'boost' => isset($item['boost']) ? (float) $item['boost'] : null,
             'options' => isset($item['options']) && is_array($item['options']) ? $item['options'] : null,
         ];
     }
 
     protected function relatedKey(string $type, mixed $id): string
     {
-        return sprintf('%s::%s', $type, is_scalar($id) ? (string) $id : '');
+        $id = $id instanceof BackedEnum ? $id->value : $id;
+
+        if (! is_scalar($id) && ! $id instanceof Stringable) {
+            throw new InvalidArgumentException('Related models must have a scalar or stringable key.');
+        }
+
+        return sprintf('%s::%s', $type, (string) $id);
     }
 
     protected function flushRelatedCache(): void
     {
         $this->unsetRelation('relatables');
+        $this->unsetRelation('relatablesFrom');
 
         unset($this->attributeCastCache['relates']);
     }

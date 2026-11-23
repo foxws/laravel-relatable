@@ -8,6 +8,7 @@ use Foxws\Relatable\Models\Relatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\Expression;
 use InvalidArgumentException;
 
 /**
@@ -17,8 +18,6 @@ use InvalidArgumentException;
  */
 class RelatableQueryBuilder extends Builder
 {
-    protected const string WEIGHT_EXPRESSION = '(score * boost)';
-
     /**
      * Add the relation's weight (score × boost) as a `weight` column.
      */
@@ -28,7 +27,7 @@ class RelatableQueryBuilder extends Builder
             $this->select($this->qualifyColumn('*'));
         }
 
-        $this->selectRaw(self::WEIGHT_EXPRESSION.' as weight');
+        $this->addSelect($this->weightExpression(' as weight'));
 
         return $this;
     }
@@ -42,7 +41,7 @@ class RelatableQueryBuilder extends Builder
         }
 
         $this
-            ->orderByRaw(self::WEIGHT_EXPRESSION.' '.($direction === 'asc' ? 'asc' : 'desc'))
+            ->orderBy($this->weightExpression(), $direction)
             ->orderBy($this->qualifyColumn($this->getModel()->getKeyName()));
 
         return $this;
@@ -52,9 +51,29 @@ class RelatableQueryBuilder extends Builder
     {
         // Multiplied by 1.0 so the (string) binding is compared as a number:
         // SQLite otherwise compares it as text, as the weight has no affinity.
-        $this->whereRaw(self::WEIGHT_EXPRESSION.' >= (? * 1.0)', [$weight]);
+        $this->whereRaw($this->weightExpression(' >= (? * 1.0)'), [$weight]);
 
         return $this;
+    }
+
+    /**
+     * The weight (score × boost), qualified so a join with a table that has a
+     * `score` or `boost` column works, followed by the given SQL.
+     *
+     * @param  literal-string  $suffix
+     * @return Expression<literal-string>
+     */
+    protected function weightExpression(string $suffix = ''): Expression
+    {
+        $grammar = $this->getQuery()->getGrammar();
+
+        $weight = "({$grammar->wrap($this->qualifyColumn('score'))} * {$grammar->wrap($this->qualifyColumn('boost'))})";
+
+        // Only the model's own column names and fixed SQL, never input.
+        /** @var literal-string $sql */
+        $sql = "{$weight}{$suffix}";
+
+        return new Expression($sql);
     }
 
     public function whereRelatable(Model $model): static
