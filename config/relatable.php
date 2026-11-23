@@ -18,7 +18,8 @@ return [
 
     /*
      * When enabled, the package's migration runs automatically. Disable
-     * it when your application owns the table (e.g. an existing one).
+     * it when your application owns the table (e.g. an existing one), or
+     * when you published the migration: both copies would run otherwise.
      */
     'migrations' => true,
 

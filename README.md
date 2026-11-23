@@ -21,7 +21,7 @@ You can install the package via Composer:
 composer require foxws/laravel-relatable
 ```
 
-The migration for the `relatables` table runs automatically. Once you publish it, the package runs your copy instead. You may publish all of the package's resources at once:
+The migration for the `relatables` table runs automatically. If you publish it, set `migrations` to `false` in `config/relatable.php`, or both copies run and the second fails with "table already exists". You may publish all of the package's resources at once:
 
 ```bash
 php artisan vendor:publish --tag="relatable"
