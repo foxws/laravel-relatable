@@ -78,7 +78,9 @@ $action->syncRelated([
 $action->syncRelated([]); // remove all
 ```
 
-A plain model keeps the score of an existing relation.
+A plain model keeps the score of an existing relation. A `score` or `boost`
+that isn't a finite number throws an `InvalidArgumentException`, so validate
+them (for example with `numeric` and a `max`) before passing user input.
 
 With `mutual: true`, the relations back are kept in sync too:
 
@@ -102,7 +104,9 @@ $action->getRelates(Video::class); // only videos (a class or morph alias)
 ```
 
 Related models are eager loaded per type, so this is one query per related
-model type. To eager load them for many models at once:
+model type. Unless `relatables` is already loaded, reading them doesn't load
+it on the model, so its array and JSON don't get every relation, with its
+options. To eager load them for many models at once:
 
 ```php
 Tag::with('relatables.related')->get();
@@ -117,6 +121,12 @@ $action->relatablesFrom(); // MorphMany: others → Action
 
 ## Deleting models
 
-Deleting a model deletes its relations in both directions. Soft-deleted models
+Deleting a model deletes its relations in both directions, once the model
+itself is deleted: a cancelled or failed delete keeps them. Soft-deleted models
 keep them until they're force-deleted. Disable this with
 `relatable.delete_on_model_delete`.
+
+## Connections
+
+Relations are read and written on the connection of the model they start
+from, unless the configured `Relatable` model sets its own `$connection`.
